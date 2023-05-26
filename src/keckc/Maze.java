@@ -2,14 +2,13 @@ package keckc;
 
 import java.io.IOException;
 import java.nio.file.Path;
-import java.util.Map;
 import java.util.Scanner;
 import java.util.Stack;
-import java.util.Vector;
 
 public class Maze {
     private boolean[][] verticalWalls, horizontalWalls;
     private MazeCell start, end;
+    private int width, height;
 
     public Maze() {
 
@@ -17,13 +16,19 @@ public class Maze {
 
     public boolean isWall(int x, int y, int direction) {
         if (direction % 2 == 0) {
-            if (direction == 2) {
-                y++;
+            if (direction == 0) {
+                y--;
+            }
+            if (y < 0 || y >= horizontalWalls.length) {
+                return true;
             }
             return horizontalWalls[y][x];
         } else {
-            if (direction == 1) {
-                x++;
+            if (direction == 3) {
+                x--;
+            }
+            if (x < 0 || x >= verticalWalls[0].length) {
+                return true;
             }
             return verticalWalls[y][x];
         }
@@ -41,13 +46,14 @@ public class Maze {
     public void loadMaze(Path path) {
         try {
             Scanner scanner = new Scanner(path);
-            int width = scanner.nextInt();
-            int height = scanner.nextInt();
+            width = scanner.nextInt();
+            height = scanner.nextInt();
             verticalWalls = new boolean[height][width - 1];
             horizontalWalls = new boolean[height - 1][width];
             scanner.nextLine();
+            scanner.nextLine();
 
-            for (int y = 1; y < height * 2 + 1; y++) {
+            for (int y = 1; y < height * 2; y++) {
                 String line = scanner.nextLine();
                 if (y % 2 == 1) {
                     for (int x = 1; x < width * 2 + 1; x += 2) {
@@ -57,7 +63,7 @@ public class Maze {
                             end = new MazeCell(x / 2, y / 2);
                         }
                     }
-                    for (int x = 2; x < width * 2 + 1; x += 2) {
+                    for (int x = 2; x < width * 2 - 1; x += 2) {
                         if (line.charAt(x) == '|') {
                             verticalWalls[y / 2][x / 2 - 1] = true;
                         }
@@ -80,39 +86,67 @@ public class Maze {
      * Solves the maze using depth-first search.
      * Implemented with a stack.
      */
-    public void solveMaze() {
+    public void solve() {
         Stack<MazeDecision> decisions = new Stack<>();
+        boolean[][] visited = new boolean[height][width];
         decisions.push(new MazeDecision(start, 0));
+        visited[start.y][start.x] = true;
 
         while (!decisions.empty()) {
-            MazeDecision decision = decisions.pop();
-            MazeCell cell = decision.cell;
-            int direction = decision.direction;
-
-            if (cell.x == end.x && cell.y == end.y) {
+            MazeDecision decision = decisions.peek();
+            if (isWall(decision.cell.x, decision.cell.y, decision.direction)) {
+                decisions.pop();
+                decision.direction++;
+                if (decision.direction == 4) {
+                    continue;
+                }
+                decisions.push(decision);
+                continue;
+            }
+            MazeCell nextCell = new MazeCell(decision.cell.x, decision.cell.y);
+            switch (decision.direction) {
+                case 0:
+                    nextCell.y--;
+                    break;
+                case 1:
+                    nextCell.x++;
+                    break;
+                case 2:
+                    nextCell.y++;
+                    break;
+                case 3:
+                    nextCell.x--;
+                    break;
+            }
+            if (visited[nextCell.y][nextCell.x]) {
+                decisions.pop();
+                decision.direction++;
+                if (decision.direction == 4) {
+                    continue;
+                }
+                decisions.push(decision);
+                continue;
+            }
+            if (nextCell.x == end.x && nextCell.y == end.y) {
                 break;
             }
-
-            for (int i = 0; i < 4; i++) {
-                int newDirection = (direction + i) % 4;
-                if (!isWall(cell.x, cell.y, newDirection)) {
-                    MazeCell newCell = new MazeCell(cell.x, cell.y);
-                    switch (newDirection) {
-                        case 0:
-                            newCell.y--;
-                            break;
-                        case 1:
-                            newCell.x++;
-                            break;
-                        case 2:
-                            newCell.y++;
-                            break;
-                        case 3:
-                            newCell.x--;
-                            break;
-                    }
-                    decisions.push(new MazeDecision(newCell, newDirection));
-                }
+            visited[nextCell.y][nextCell.x] = true;
+            decisions.push(new MazeDecision(nextCell, 0));
+        }
+        for (MazeDecision decision : decisions) { // This goes against the stack's intended use, but it's the easiest way to print the path.
+            switch (decision.direction) {
+                case 0:
+                    System.out.print("up ");
+                    break;
+                case 1:
+                    System.out.print("right ");
+                    break;
+                case 2:
+                    System.out.print("down ");
+                    break;
+                case 3:
+                    System.out.print("left ");
+                    break;
             }
         }
     }
@@ -125,5 +159,37 @@ public class Maze {
             this.cell = cell;
             this.direction = direction;
         }
+    }
+
+    @Override
+    public String toString() {
+        StringBuilder builder = new StringBuilder();
+        for (int y = 0; y < height * 2 + 1; y++) {
+            if (y % 2 == 0) {
+                for (int x = 0; x < width * 2 + 1; x++) {
+                    if (x % 2 == 0) {
+                        builder.append('+');
+                    } else {
+                        builder.append(isWall(x / 2, y / 2, 0) ? '-' : ' ');
+                    }
+                }
+            } else {
+                for (int x = 0; x < width * 2 + 1; x++) {
+                    if (x % 2 == 0) {
+                        builder.append(isWall(x / 2, y / 2, 3) ? '|' : ' ');
+                    } else {
+                        if (x / 2 == start.x && y / 2 == start.y) {
+                            builder.append('S');
+                        } else if (x / 2 == end.x && y / 2 == end.y) {
+                            builder.append('E');
+                        } else {
+                            builder.append(' ');
+                        }
+                    }
+                }
+            }
+            builder.append('\n');
+        }
+        return builder.toString();
     }
 }
